@@ -55,22 +55,22 @@ const MAX_COL_INDEX = 21; // V 列
 /** 環境変数が設定済みかチェック */
 export function isSheetsConfigured(): boolean {
   return !!(
-    process.env.GOOGLE_SHEETS_SPREADSHEET_ID &&
-    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL &&
-    process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
+    process.env.NEXT_PUBLIC_GOOGLE_SHEETS_SPREADSHEET_ID &&
+    process.env.NEXT_PUBLIC_GOOGLE_SERVICE_ACCOUNT_EMAIL &&
+    process.env.NEXT_PUBLIC_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
   );
 }
 
 /** Google Sheets ドキュメントクライアントを取得 */
 async function getDoc(): Promise<GoogleSpreadsheet> {
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const rawKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
-  const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+  const email = process.env.NEXT_PUBLIC_GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const rawKey = process.env.NEXT_PUBLIC_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+  const spreadsheetId = process.env.NEXT_PUBLIC_GOOGLE_SHEETS_SPREADSHEET_ID;
 
   if (!email || !rawKey || !spreadsheetId) {
     throw new Error(
-      "環境変数が不足しています。.env.local に GOOGLE_SHEETS_SPREADSHEET_ID / " +
-      "GOOGLE_SERVICE_ACCOUNT_EMAIL / GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY を設定してください。"
+      "環境変数が不足しています。.env.local に NEXT_PUBLIC_GOOGLE_SHEETS_SPREADSHEET_ID / " +
+      "NEXT_PUBLIC_GOOGLE_SERVICE_ACCOUNT_EMAIL / NEXT_PUBLIC_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY を設定してください。"
     );
   }
 
@@ -90,7 +90,7 @@ async function getDoc(): Promise<GoogleSpreadsheet> {
 
 /** 設定されたシートを取得 */
 function getSheet(doc: GoogleSpreadsheet): GoogleSpreadsheetWorksheet {
-  const index = parseInt(process.env.GOOGLE_SHEETS_SHEET_INDEX ?? "0", 10);
+  const index = parseInt(process.env.NEXT_PUBLIC_GOOGLE_SHEETS_SHEET_INDEX ?? "0", 10);
   const sheet = doc.sheetsByIndex[index];
   if (!sheet) throw new Error(`シートインデックス ${index} が見つかりません。`);
   return sheet;
