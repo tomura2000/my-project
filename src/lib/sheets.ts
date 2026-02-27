@@ -52,29 +52,48 @@ const MAX_COL_INDEX = 21; // V 列
 
 // ── クライアント初期化 ──────────────────────────────────────
 
-/** 環境変数が設定済みかチェック */
+/**
+ * 環境変数が設定済みかチェック
+ * - 秘密情報（EMAIL / PRIVATE_KEY）はサーバー専用変数（NEXT_PUBLIC_ なし）
+ * - スプレッドシート ID / シートインデックスは NEXT_PUBLIC_ 付き
+ */
 export function isSheetsConfigured(): boolean {
-  return !!(
-    process.env.NEXT_PUBLIC_GOOGLE_SHEETS_SPREADSHEET_ID &&
-    process.env.NEXT_PUBLIC_GOOGLE_SERVICE_ACCOUNT_EMAIL &&
-    process.env.NEXT_PUBLIC_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
-  );
+  const spreadsheetId = process.env.NEXT_PUBLIC_GOOGLE_SHEETS_SPREADSHEET_ID;
+  const email         = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const privateKey    = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+
+  // デバッグログ（値は出力せず存在確認のみ）
+  console.log("[Sheets] 環境変数チェック:", {
+    NEXT_PUBLIC_GOOGLE_SHEETS_SPREADSHEET_ID:    !!spreadsheetId,
+    GOOGLE_SERVICE_ACCOUNT_EMAIL:    !!email,
+    GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: !!privateKey,
+  });
+
+  return !!(spreadsheetId && email && privateKey);
 }
 
 /** Google Sheets ドキュメントクライアントを取得 */
 async function getDoc(): Promise<GoogleSpreadsheet> {
-  const email = process.env.NEXT_PUBLIC_GOOGLE_SERVICE_ACCOUNT_EMAIL;
-  const rawKey = process.env.NEXT_PUBLIC_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
+  const email         = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const rawKey        = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
   const spreadsheetId = process.env.NEXT_PUBLIC_GOOGLE_SHEETS_SPREADSHEET_ID;
 
   if (!email || !rawKey || !spreadsheetId) {
+    // どの変数が欠けているかをログに出力（値は非表示）
+    console.error("[Sheets] 環境変数が不足しています:", {
+      NEXT_PUBLIC_GOOGLE_SHEETS_SPREADSHEET_ID:    !!spreadsheetId,
+      GOOGLE_SERVICE_ACCOUNT_EMAIL:    !!email,
+      GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: !!rawKey,
+    });
     throw new Error(
-      "環境変数が不足しています。.env.local に NEXT_PUBLIC_GOOGLE_SHEETS_SPREADSHEET_ID / " +
-      "NEXT_PUBLIC_GOOGLE_SERVICE_ACCOUNT_EMAIL / NEXT_PUBLIC_GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY を設定してください。"
+      "環境変数が不足しています。.env.local / Vercel の Environment Variables に " +
+      "NEXT_PUBLIC_GOOGLE_SHEETS_SPREADSHEET_ID / " +
+      "GOOGLE_SERVICE_ACCOUNT_EMAIL / " +
+      "GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY を設定してください。"
     );
   }
 
-  // .env.local 内の \n リテラルを実際の改行に変換
+  // \n リテラルを実際の改行に変換（.env.local・Vercel 両対応）
   const privateKey = rawKey.replace(/\\n/g, "\n");
 
   const auth = new JWT({
