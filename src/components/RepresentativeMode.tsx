@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { AuctionItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   CheckCircle2,
@@ -40,7 +40,7 @@ export function RepresentativeMode({
   onSaveFeedback,
 }: RepresentativeModeProps) {
   const [feedbackDraft, setFeedbackDraft] = useState<Record<string, string>>({});
-  const feedbackRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const feedbackRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
   const [brandFilter, setBrandFilter] = useState<BrandKey>("ALL");
   const [sortOrder, setSortOrder] = useState<SortOrder>("none");
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
@@ -362,7 +362,7 @@ export function RepresentativeMode({
                     {item.notes ? (
                       <div>
                         <span
-                          className={`text-sm text-muted-foreground block ${
+                          className={`text-sm text-muted-foreground block whitespace-pre-wrap ${
                             isNoteExpanded ? "" : "line-clamp-3"
                           }`}
                         >
@@ -414,10 +414,11 @@ export function RepresentativeMode({
                       <p className="text-xs text-muted-foreground mb-0.5 md:hidden">
                         フィードバック
                       </p>
-                      <Input
+                      <Textarea
                         ref={(el) => { feedbackRefs.current[item.id] = el; }}
                         placeholder="フィードバックを入力..."
-                        className="h-8 text-sm"
+                        className="text-sm resize-none min-h-[5rem]"
+                        rows={3}
                         value={draft}
                         onChange={(e) =>
                           setFeedbackDraft((prev) => ({

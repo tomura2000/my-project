@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, type ReactNode } from "react";
 import { toast } from "sonner";
 import { AuctionItem, Assignee } from "@/lib/types";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -39,6 +39,41 @@ function JudgmentTag({ judged, result }: { judged: boolean; result: boolean }) {
       要修正
     </span>
   );
+}
+
+// ── URLリンク化ユーティリティ ──────────────────────────────────
+// whitespace-pre-wrap と共存：テキストノードが改行を保持し、URLだけ <a> に変換する
+
+function linkifyText(text: string) {
+  const urlRegex = /https?:\/\/[^\s<>"]+/g;
+  const result: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = urlRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      result.push(text.slice(lastIndex, match.index));
+    }
+    const url = match[0];
+    result.push(
+      <a
+        key={match.index}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-600 underline break-all hover:text-blue-800"
+      >
+        {url}
+      </a>
+    );
+    lastIndex = match.index + url.length;
+  }
+
+  if (lastIndex < text.length) {
+    result.push(text.slice(lastIndex));
+  }
+
+  return result;
 }
 
 // ── メインコンポーネント ────────────────────────────────────
@@ -292,7 +327,7 @@ export function FeedbackHistory({ items, currentAssignee, onConfirm }: FeedbackH
                     代表からのフィードバック（U列）
                   </p>
                   <p className="text-sm text-amber-900 leading-relaxed whitespace-pre-wrap">
-                    {item.feedback}
+                    {linkifyText(item.feedback)}
                   </p>
                 </div>
 
