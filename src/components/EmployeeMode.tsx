@@ -18,13 +18,14 @@ import {
   Filter,
 } from "lucide-react";
 import { BrandFilterButtons } from "@/components/BrandFilterButtons";
-import { BrandKey, BRANDS, matchesBrand } from "@/lib/brands";
+import { BrandKey, getBrandsForCategory, matchesBrand } from "@/lib/brands";
 import { ASSIGNEE_COLORS } from "@/components/AssigneeSelect";
 
 interface EmployeeModeProps {
   items: AuctionItem[];
   currentAssignee: Assignee;
   onAssigneeChange: (assignee: Assignee) => void;
+  categoryKey: string;
   onSave: (
     id: string,
     data: {
@@ -66,6 +67,7 @@ export function EmployeeMode({
   items,
   currentAssignee,
   onAssigneeChange,
+  categoryKey,
   onSave,
 }: EmployeeModeProps) {
   const [myTaskOnly, setMyTaskOnly] = useState(false);
@@ -73,15 +75,24 @@ export function EmployeeMode({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [form, setForm] = useState<FormState>(emptyForm);
 
+  // カテゴリーに対応するブランドリスト
+  const brands = getBrandsForCategory(categoryKey);
+
+  // カテゴリーが切り替わったらブランドフィルターとインデックスをリセット
+  useEffect(() => {
+    setBrandFilter("ALL");
+    setCurrentIndex(0);
+  }, [categoryKey]);
+
   // ブランドボタン用の件数（未処理商品ベース）
   const brandCounts = useMemo(() => {
     const base = items.filter((i) => !i.check);
     const result: Partial<Record<BrandKey, number>> = { ALL: base.length };
-    for (const b of BRANDS) {
+    for (const b of brands) {
       result[b.key] = base.filter((i) => matchesBrand(i.brandName, b.key)).length;
     }
     return result;
-  }, [items]);
+  }, [items, brands]);
 
   // フィルタ後の未処理リスト
   const pending = useMemo(
@@ -202,6 +213,7 @@ export function EmployeeMode({
 
         {/* ブランドフィルター */}
         <BrandFilterButtons
+          brands={brands}
           selected={brandFilter}
           onChange={setBrandFilter}
           counts={brandCounts}

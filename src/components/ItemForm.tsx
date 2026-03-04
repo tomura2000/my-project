@@ -33,6 +33,8 @@ const emptyForm: CreateAuctionItem = {
   judgmentResult: false,
   feedback: "",
   feedbackConfirmed: false,
+  winningSuccess: false,
+  auctionDate: "",
 };
 
 export function ItemForm({ item, onSubmit, onCancel }: ItemFormProps) {
@@ -57,6 +59,8 @@ export function ItemForm({ item, onSubmit, onCancel }: ItemFormProps) {
           judgmentResult: item.judgmentResult,
           feedback: item.feedback,
           feedbackConfirmed: item.feedbackConfirmed,
+          winningSuccess: item.winningSuccess,
+          auctionDate: item.auctionDate,
         }
       : emptyForm
   );

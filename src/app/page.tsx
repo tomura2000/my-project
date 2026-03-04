@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { AuctionItem, Assignee } from "@/lib/types";
-import { sampleItems } from "@/lib/data";
+import { CATEGORIES, DEFAULT_CATEGORY_KEY } from "@/lib/categories";
+import { getSampleItems } from "@/lib/data";
 import { AssigneeSelect, ASSIGNEE_COLORS } from "@/components/AssigneeSelect";
 import { EmployeeMode } from "@/components/EmployeeMode";
 import { FeedbackHistory } from "@/components/FeedbackHistory";
@@ -19,28 +21,18 @@ import {
   Loader2,
   RefreshCw,
   LogOut,
+  BarChart2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Tab = "employee" | "feedback" | "representative";
 type ConnectionStatus = "loading" | "connected" | "sample";
 
-async function apiPatch(id: string, payload: object): Promise<void> {
-  const res = await fetch(`/api/items/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.message ?? `HTTP ${res.status}`);
-  }
-}
-
 export default function HomePage() {
   const [items, setItems] = useState<AuctionItem[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>("employee");
   const [status, setStatus] = useState<ConnectionStatus>("loading");
+  const [currentCategory, setCurrentCategory] = useState<string>(DEFAULT_CATEGORY_KEY);
 
   // 担当者はページ全体で共有（入札入力・フィードバック確認で同じ人を使う）
   const [currentAssignee, setCurrentAssignee] = useState<Assignee>("");
@@ -49,7 +41,7 @@ export default function HomePage() {
   const fetchItems = useCallback(async () => {
     setStatus("loading");
     try {
-      const res = await fetch("/api/items");
+      const res = await fetch(`/api/items?category=${currentCategory}`);
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         if (body.error === "not_configured") throw new Error("not_configured");
@@ -62,10 +54,10 @@ export default function HomePage() {
       if (msg !== "not_configured") {
         toast.error("スプレッドシートの取得に失敗しました。サンプルデータを表示します。");
       }
-      setItems(sampleItems);
+      setItems(getSampleItems(currentCategory));
       setStatus("sample");
     }
-  }, []);
+  }, [currentCategory]);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
@@ -78,7 +70,15 @@ export default function HomePage() {
     );
     if (status === "connected") {
       try {
-        await apiPatch(id, payload);
+        const res = await fetch(`/api/items/${id}?category=${currentCategory}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.message ?? `HTTP ${res.status}`);
+        }
         toast.success(msg);
       } catch (err) {
         toast.error(`保存に失敗しました: ${err instanceof Error ? err.message : "不明なエラー"}`);
@@ -92,22 +92,20 @@ export default function HomePage() {
   const handleEmployeeSave = (id: string, data: Parameters<typeof patchItem>[1] & object) =>
     patchItem(id, data, "保存しました。次の商品に進みます。");
 
-  const handleApprove = (id: string, feedback: string) =>
-    patchItem(id, { representativeCheck: true, judgmentResult: true, feedback }, "合格として記録しました（S・T・U列を更新）");
-
-  const handleReject = (id: string, feedback: string) =>
-    patchItem(id, { representativeCheck: true, judgmentResult: false, feedback }, "不合格として記録しました（S・T・U列を更新）");
-
-  const handleSaveFeedback = (id: string, feedback: string) =>
-    patchItem(id, { feedback }, "フィードバックを保存しました（U列）");
-
   const handleFeedbackConfirm = (id: string) =>
     patchItem(id, { feedbackConfirmed: true }, "確認済みにしました（V列）");
+
+  // ── カテゴリー切り替え ───────────────────────────────────────
+  const handleCategoryChange = (key: string) => {
+    if (key === currentCategory) return;
+    setCurrentCategory(key);
+    // カテゴリー切り替え時は items をリセット（fetchItems が useEffect で自動実行される）
+    setItems([]);
+  };
 
   // ── 集計 ────────────────────────────────────────────────────
   const pendingCount   = items.filter((i) => !i.check).length;
   const feedbackCount  = items.filter((i) => i.assignee === currentAssignee && i.feedback.trim() !== "" && !i.feedbackConfirmed).length;
-  const approvalCount  = items.filter((i) => i.check && !i.representativeCheck).length;
 
   // ── 社員系タブで担当者未選択なら選択画面を表示 ─────────────
   const needsAssignee = (activeTab === "employee" || activeTab === "feedback") && !currentAssignee;
@@ -116,13 +114,16 @@ export default function HomePage() {
   const tabs: { key: Tab; label: string; icon: React.ElementType; badge?: number }[] = [
     { key: "employee",       label: "入札入力",         icon: ClipboardList, badge: pendingCount },
     { key: "feedback",       label: "フィードバック確認", icon: MessageSquare,  badge: currentAssignee ? feedbackCount : undefined },
-    { key: "representative", label: "代表モード",        icon: Crown,          badge: approvalCount },
+    { key: "representative", label: "代表モード",        icon: Crown },
   ];
+
+  const currentCategoryLabel = CATEGORIES.find((c) => c.key === currentCategory)?.label ?? "";
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* ── ヘッダー ── */}
       <header className="bg-white border-b sticky top-0 z-20">
+        {/* メインヘッダー行 */}
         <div className="max-w-screen-lg mx-auto px-4 sm:px-6 h-14 flex items-center gap-3">
           {/* ロゴ */}
           <div className="flex items-center gap-2 shrink-0">
@@ -159,6 +160,15 @@ export default function HomePage() {
               );
             })}
           </nav>
+
+          {/* 分析ページリンク */}
+          <Link
+            href="/analytics"
+            className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors shrink-0 px-2 py-1 rounded-md hover:bg-muted"
+          >
+            <BarChart2 className="h-3.5 w-3.5" />
+            <span>分析</span>
+          </Link>
 
           {/* 接続ステータス + ログイン中担当者 */}
           <div className="hidden md:flex items-center gap-2 shrink-0">
@@ -201,6 +211,36 @@ export default function HomePage() {
             </div>
           </div>
         </div>
+
+        {/* カテゴリー切り替え行 */}
+        <div className="border-t bg-muted/20">
+          <div className="max-w-screen-lg mx-auto px-4 sm:px-6 h-10 flex items-center gap-2">
+            <span className="text-xs text-muted-foreground shrink-0">商材：</span>
+            <div className="flex items-center gap-1">
+              {CATEGORIES.map((cat) => {
+                const isActive = currentCategory === cat.key;
+                return (
+                  <button
+                    key={cat.key}
+                    onClick={() => handleCategoryChange(cat.key)}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all
+                      ${isActive
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                      }`}
+                  >
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
+            {status !== "loading" && (
+              <span className="text-xs text-muted-foreground ml-1">
+                — {currentCategoryLabel}・{items.length}件
+              </span>
+            )}
+          </div>
+        </div>
       </header>
 
       {/* サンプルデータバナー */}
@@ -231,6 +271,7 @@ export default function HomePage() {
               items={items}
               currentAssignee={currentAssignee}
               onAssigneeChange={setCurrentAssignee}
+              categoryKey={currentCategory}
               onSave={handleEmployeeSave}
             />
           )}
@@ -242,12 +283,7 @@ export default function HomePage() {
             />
           )}
           {activeTab === "representative" && (
-            <RepresentativeMode
-              items={items}
-              onApprove={handleApprove}
-              onReject={handleReject}
-              onSaveFeedback={handleSaveFeedback}
-            />
+            <RepresentativeMode />
           )}
         </main>
       )}

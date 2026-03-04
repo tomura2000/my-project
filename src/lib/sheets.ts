@@ -17,9 +17,13 @@
  *   Q(16) : 参考URL⑤
  *   R(17) : 補足メモ
  *   S(18) : 代表チェック
- *   T(19) : 成否判断（チェックボックス）
+ *   T(19) : 相場正誤チェック（チェックボックス）
  *   U(20) : フィードバック
  *   V(21) : フィードバック確認完了
+ *   X(23) : 落札成功（読み取り専用）
+ *   Y(24) : 開催日
+ *
+ * すべての商材シートで同じ列定義を使用します。
  */
 
 import { GoogleSpreadsheet, GoogleSpreadsheetWorksheet } from "google-spreadsheet";
@@ -46,44 +50,43 @@ const COL = {
   judgmentResult: 19,     // T
   feedback: 20,           // U
   feedbackConfirmed: 21,  // V
+  winningSuccess: 23,     // X（読み取り専用）
+  auctionDate: 24,        // Y
 } as const;
 
-const MAX_COL_INDEX = 21; // V 列
+const MAX_COL_INDEX = 24; // Y 列
 
 // ── クライアント初期化 ──────────────────────────────────────
 
 /**
  * 環境変数が設定済みかチェック
- * - 秘密情報（EMAIL / PRIVATE_KEY）はサーバー専用変数（NEXT_PUBLIC_ なし）
- * - スプレッドシート ID / シートインデックスは NEXT_PUBLIC_ 付き
+ * シートはタブ名で指定するため SHEET_INDEX は不要です。
  */
 export function isSheetsConfigured(): boolean {
   const spreadsheetId = process.env.NEXT_PUBLIC_GOOGLE_SHEETS_SPREADSHEET_ID;
   const email         = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const privateKey    = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
 
-  // デバッグログ（値は出力せず存在確認のみ）
   console.log("[Sheets] 環境変数チェック:", {
-    NEXT_PUBLIC_GOOGLE_SHEETS_SPREADSHEET_ID:    !!spreadsheetId,
-    GOOGLE_SERVICE_ACCOUNT_EMAIL:    !!email,
-    GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: !!privateKey,
+    NEXT_PUBLIC_GOOGLE_SHEETS_SPREADSHEET_ID: !!spreadsheetId,
+    GOOGLE_SERVICE_ACCOUNT_EMAIL:             !!email,
+    GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY:       !!privateKey,
   });
 
   return !!(spreadsheetId && email && privateKey);
 }
 
-/** Google Sheets ドキュメントクライアントを取得 */
+/** Google Sheets ドキュメントクライアントを取得（認証＋メタデータ読み込み） */
 async function getDoc(): Promise<GoogleSpreadsheet> {
   const email         = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const rawKey        = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY;
   const spreadsheetId = process.env.NEXT_PUBLIC_GOOGLE_SHEETS_SPREADSHEET_ID;
 
   if (!email || !rawKey || !spreadsheetId) {
-    // どの変数が欠けているかをログに出力（値は非表示）
     console.error("[Sheets] 環境変数が不足しています:", {
-      NEXT_PUBLIC_GOOGLE_SHEETS_SPREADSHEET_ID:    !!spreadsheetId,
-      GOOGLE_SERVICE_ACCOUNT_EMAIL:    !!email,
-      GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: !!rawKey,
+      NEXT_PUBLIC_GOOGLE_SHEETS_SPREADSHEET_ID: !!spreadsheetId,
+      GOOGLE_SERVICE_ACCOUNT_EMAIL:             !!email,
+      GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY:       !!rawKey,
     });
     throw new Error(
       "環境変数が不足しています。.env.local / Vercel の Environment Variables に " +
@@ -103,15 +106,22 @@ async function getDoc(): Promise<GoogleSpreadsheet> {
   });
 
   const doc = new GoogleSpreadsheet(spreadsheetId, auth);
-  await doc.loadInfo();
+  await doc.loadInfo(); // シート一覧をロード（sheetsByTitle が使えるようになる）
   return doc;
 }
 
-/** 設定されたシートを取得 */
-function getSheet(doc: GoogleSpreadsheet): GoogleSpreadsheetWorksheet {
-  const index = parseInt(process.env.NEXT_PUBLIC_GOOGLE_SHEETS_SHEET_INDEX ?? "0", 10);
-  const sheet = doc.sheetsByIndex[index];
-  if (!sheet) throw new Error(`シートインデックス ${index} が見つかりません。`);
+/** タブ名でシートを取得 */
+function getSheetByName(
+  doc: GoogleSpreadsheet,
+  sheetName: string
+): GoogleSpreadsheetWorksheet {
+  const sheet = doc.sheetsByTitle[sheetName];
+  if (!sheet) {
+    throw new Error(
+      `シート「${sheetName}」が見つかりません。` +
+      `利用可能なシート: ${Object.keys(doc.sheetsByTitle).join(", ")}`
+    );
+  }
   return sheet;
 }
 
@@ -126,7 +136,6 @@ function toBool(value: unknown): boolean {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value === 1;
   if (typeof value === "string") {
-    // チェックボックス標準値 + 旧文字列（「対象」「成功」）も true として扱う
     return ["true", "TRUE", "1", "✓", "yes", "YES", "対象", "成功"].includes(value.trim());
   }
   return false;
@@ -136,7 +145,6 @@ function toNum(value: unknown): number | null {
   if (value === null || value === undefined || value === "") return null;
   if (typeof value === "number") return isNaN(value) ? null : value;
   if (typeof value === "string") {
-    // カンマ・円記号・スペースを除去してパース（例: "10,000" → 10000, "¥85,000" → 85000）
     const cleaned = value.replace(/[,¥\s]/g, "");
     if (cleaned === "") return null;
     const n = Number(cleaned);
@@ -147,32 +155,42 @@ function toNum(value: unknown): number | null {
 }
 
 /**
+ * 日付セルを "YYYY-MM-DD" 形式の文字列へ変換する。
+ * Google Sheets の日付セルは formattedValue（表示文字列）または
+ * シリアル値（1899-12-30 起算の日数）で返る。
+ */
+function readDateCell(
+  cell: { value: unknown; formattedValue?: string | null }
+): string {
+  if (cell.formattedValue != null && cell.formattedValue !== "") {
+    return cell.formattedValue;
+  }
+  if (typeof cell.value === "number") {
+    const msPerDay = 86400000;
+    const base = Date.UTC(1899, 11, 30);
+    const d = new Date(base + cell.value * msPerDay);
+    return d.toISOString().split("T")[0];
+  }
+  return toStr(cell.value);
+}
+
+/**
  * 数式セルを安全に数値へ変換する。
- * google-spreadsheet ライブラリは数式セルの計算結果を cell.value に入れるが、
- * 未計算・エラーの場合は 0 や null になることがある。
- * そのため formattedValue（Google Sheets が画面に表示する文字列）を優先的に使う。
- *
- * @param cell  sheet.getCell() の戻り値
- * @param label デバッグログ用ラベル（例: "K列(入札価格)"）
+ * formattedValue（Google Sheets が画面表示する文字列）を優先する。
  */
 function readPriceCell(
   cell: { value: unknown; formattedValue?: string | null },
   label: string
 ): number | null {
-  // ── デバッグログ（原因切り分け用。本番環境でも意図的に出力する） ──
   console.log(`[Sheets debug] ${label}:`, {
     value: cell.value,
     formattedValue: cell.formattedValue ?? "(undefined)",
   });
 
-  // formattedValue = Google Sheets が実際に表示している文字列（数式の計算後の値）
-  // これが取れる場合は最優先で使う
   if (cell.formattedValue != null && cell.formattedValue !== "") {
     const parsed = toNum(cell.formattedValue);
     if (parsed !== null) return parsed;
   }
-
-  // フォールバック: cell.value（数式セルでは computed value が入る想定）
   return toNum(cell.value);
 }
 
@@ -180,13 +198,12 @@ function readPriceCell(
 
 function rowToItem(
   sheet: GoogleSpreadsheetWorksheet,
-  rowIndex: number // loadCells の 0始まり行インデックス
+  rowIndex: number
 ): AuctionItem | null {
   const productUrl = toStr(sheet.getCell(rowIndex, COL.productUrl).value);
-  if (!productUrl) return null; // 空行はスキップ
+  if (!productUrl) return null;
 
-  // スプレッドシート上の実際の行番号（1始まり）を ID として使う
-  const spreadsheetRowNumber = rowIndex + 1; // rowIndex=0 → 行1（ヘッダー）なので、data は rowIndex>=1
+  const spreadsheetRowNumber = rowIndex + 1;
 
   return {
     id: String(spreadsheetRowNumber),
@@ -208,19 +225,18 @@ function rowToItem(
     judgmentResult: toBool(sheet.getCell(rowIndex, COL.judgmentResult).value),
     feedback: toStr(sheet.getCell(rowIndex, COL.feedback).value),
     feedbackConfirmed: toBool(sheet.getCell(rowIndex, COL.feedbackConfirmed).value),
+    winningSuccess: toBool(sheet.getCell(rowIndex, COL.winningSuccess).value),
+    auctionDate: readDateCell(sheet.getCell(rowIndex, COL.auctionDate)),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 }
 
-// ── 公開 API ────────────────────────────────────────────────
+// ── 内部ヘルパー: シートオブジェクトからアイテム一覧を取得 ──
 
-/** 全商品データをスプレッドシートから取得する */
-export async function fetchAllItems(): Promise<AuctionItem[]> {
-  const doc = await getDoc();
-  const sheet = getSheet(doc);
-
-  // プロトタイプとして最大1001行（ヘッダー含む）を読み込む
+async function fetchItemsFromSheet(
+  sheet: GoogleSpreadsheetWorksheet
+): Promise<AuctionItem[]> {
   const maxRows = Math.min(sheet.rowCount, 1001);
 
   await sheet.loadCells({
@@ -231,14 +247,41 @@ export async function fetchAllItems(): Promise<AuctionItem[]> {
   });
 
   const items: AuctionItem[] = [];
-
-  // row=0 はヘッダー行のためスキップ
   for (let row = 1; row < maxRows; row++) {
     const item = rowToItem(sheet, row);
     if (item) items.push(item);
   }
-
   return items;
+}
+
+// ── 公開 API ────────────────────────────────────────────────
+
+/**
+ * 指定シートから全商品データを取得する
+ * @param sheetName スプレッドシートのタブ名
+ */
+export async function fetchAllItems(sheetName: string): Promise<AuctionItem[]> {
+  const doc = await getDoc();
+  const sheet = getSheetByName(doc, sheetName);
+  return fetchItemsFromSheet(sheet);
+}
+
+/**
+ * 複数シートから並列でデータを取得する（Doc 接続は1回のみ）
+ * 分析ページでの全カテゴリー取得に使用する。
+ * @param sheetNames タブ名の配列
+ * @returns 各シートのアイテム配列（入力順と同じ順序）
+ */
+export async function fetchAllItemsMultiple(
+  sheetNames: string[]
+): Promise<AuctionItem[][]> {
+  const doc = await getDoc();
+  return Promise.all(
+    sheetNames.map((name) => {
+      const sheet = getSheetByName(doc, name);
+      return fetchItemsFromSheet(sheet);
+    })
+  );
 }
 
 /** 更新対象のフィールド型 */
@@ -261,13 +304,17 @@ export type UpdatePayload = Partial<{
 
 /**
  * 既存行を更新する
+ * @param sheetName スプレッドシートのタブ名
  * @param rowNumber スプレッドシートの実際の行番号（1始まり）
  */
-export async function updateItem(rowNumber: number, payload: UpdatePayload): Promise<void> {
+export async function updateItem(
+  sheetName: string,
+  rowNumber: number,
+  payload: UpdatePayload
+): Promise<void> {
   const doc = await getDoc();
-  const sheet = getSheet(doc);
+  const sheet = getSheetByName(doc, sheetName);
 
-  // loadCells は 0始まりなので rowNumber - 1
   const rowIndex = rowNumber - 1;
 
   await sheet.loadCells({
@@ -299,14 +346,18 @@ export async function updateItem(rowNumber: number, payload: UpdatePayload): Pro
   await sheet.saveUpdatedCells();
 }
 
-/** 新規行をスプレッドシートに追記する */
+/**
+ * 新規行をスプレッドシートに追記する
+ * @param sheetName スプレッドシートのタブ名
+ */
 export async function appendItem(
+  sheetName: string,
   data: Omit<AuctionItem, "id" | "createdAt" | "updatedAt">
 ): Promise<void> {
   const doc = await getDoc();
-  const sheet = getSheet(doc);
+  const sheet = getSheetByName(doc, sheetName);
 
-  // A〜V（22列）の配列を用意し、対応するインデックスに値を入れる
+  // A〜Y（25列）の配列を用意し、対応するインデックスに値を入れる（X・Y は読み取り専用のため空のまま）
   const row = new Array(MAX_COL_INDEX + 1).fill("");
   row[COL.productUrl]          = data.productUrl;
   row[COL.brandName]           = data.brandName;

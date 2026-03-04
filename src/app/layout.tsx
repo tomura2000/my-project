@@ -24,6 +24,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
+      <head>
+        {/* DNS 解決・TCP/TLS 接続を事前確立して外部リンクの体感速度を向上 */}
+        <link rel="preconnect" href="https://www.ecoauc.com" />
+        <link rel="dns-prefetch" href="https://www.ecoauc.com" />
+        <link rel="preconnect" href="https://jp.mercari.com" />
+        <link rel="dns-prefetch" href="https://jp.mercari.com" />
+        <link rel="preconnect" href="https://www.mercari.com" />
+        <link rel="dns-prefetch" href="https://www.mercari.com" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

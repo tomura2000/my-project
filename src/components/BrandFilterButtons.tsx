@@ -1,8 +1,10 @@
 "use client";
 
-import { BRANDS, BrandKey } from "@/lib/brands";
+import { BrandDef, BrandKey } from "@/lib/brands";
 
 interface BrandFilterButtonsProps {
+  /** 表示するブランド一覧（カテゴリーに応じて呼び出し側が選択） */
+  brands: BrandDef[];
   selected: BrandKey;
   onChange: (key: BrandKey) => void;
   /** 各ブランドの件数（省略可） */
@@ -10,11 +12,12 @@ interface BrandFilterButtonsProps {
 }
 
 export function BrandFilterButtons({
+  brands,
   selected,
   onChange,
   counts,
 }: BrandFilterButtonsProps) {
-  const allKeys: BrandKey[] = ["ALL", ...BRANDS.map((b) => b.key)];
+  const allKeys: BrandKey[] = ["ALL", ...brands.map((b) => b.key)];
 
   const label = (key: BrandKey) => (key === "ALL" ? "すべて表示" : key);
 

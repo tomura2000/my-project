@@ -1,10 +1,11 @@
 /**
- * PATCH /api/items/[id]  → 指定行を部分更新
- *   [id] = スプレッドシートの行番号（1始まり）
- *          例: 行2（最初のデータ行）→ /api/items/2
+ * PATCH /api/items/[id]?category=apparel  → 指定行を部分更新
+ *   [id]      = スプレッドシートの行番号（1始まり）例: /api/items/2
+ *   ?category = カテゴリーキー（省略時は DEFAULT_CATEGORY_KEY）
  */
 import { NextResponse } from "next/server";
 import { updateItem, isSheetsConfigured, UpdatePayload } from "@/lib/sheets";
+import { getCategoryConfig, DEFAULT_CATEGORY_KEY, isValidCategoryKey } from "@/lib/categories";
 
 // Node.js ランタイムで実行（google-spreadsheet は Edge 非対応）
 export const runtime = "nodejs";
@@ -20,6 +21,16 @@ export async function PATCH(
     );
   }
 
+  const { searchParams } = new URL(request.url);
+  const categoryKey = searchParams.get("category") ?? DEFAULT_CATEGORY_KEY;
+
+  if (!isValidCategoryKey(categoryKey)) {
+    return NextResponse.json(
+      { error: "invalid_category", message: `未知のカテゴリー: ${categoryKey}` },
+      { status: 400 }
+    );
+  }
+
   const { id } = await params;
   const rowNumber = parseInt(id, 10);
 
@@ -30,13 +41,15 @@ export async function PATCH(
     );
   }
 
+  const category = getCategoryConfig(categoryKey)!;
+
   try {
     const payload: UpdatePayload = await request.json();
-    await updateItem(rowNumber, payload);
+    await updateItem(category.sheetName, rowNumber, payload);
     return NextResponse.json({ success: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : "不明なエラーが発生しました";
-    console.error(`[PATCH /api/items/${id}]`, err);
+    console.error(`[PATCH /api/items/${id}?category=${categoryKey}]`, err);
     return NextResponse.json({ error: "update_failed", message }, { status: 500 });
   }
 }
