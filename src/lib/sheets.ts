@@ -237,17 +237,17 @@ function rowToItem(
 async function fetchItemsFromSheet(
   sheet: GoogleSpreadsheetWorksheet
 ): Promise<AuctionItem[]> {
-  const maxRows = Math.min(sheet.rowCount, 1001);
+  const totalRows = sheet.rowCount;
 
   await sheet.loadCells({
     startRowIndex: 0,
-    endRowIndex: maxRows,
+    endRowIndex: totalRows,
     startColumnIndex: 0,
     endColumnIndex: MAX_COL_INDEX + 1,
   });
 
   const items: AuctionItem[] = [];
-  for (let row = 1; row < maxRows; row++) {
+  for (let row = 1; row < totalRows; row++) {
     const item = rowToItem(sheet, row);
     if (item) items.push(item);
   }
