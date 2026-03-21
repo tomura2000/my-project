@@ -24,7 +24,7 @@ export function AssigneeSelect({ onSelect }: AssigneeSelectProps) {
         </div>
         <h2 className="text-2xl font-bold">担当者を選択してください</h2>
         <p className="text-muted-foreground text-sm">
-          選んだ名前が G列（担当者）への書き込みとフィードバック確認に使われます
+          選んだ名前が H列（担当者）への書き込みとフィードバック確認に使われます
         </p>
       </div>
 

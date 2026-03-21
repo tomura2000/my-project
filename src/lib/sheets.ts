@@ -3,25 +3,27 @@
  *
  * 列マッピング（スプレッドシートの列インデックス、0始まり）:
  *   A(0)  : 商品URL
- *   D(3)  : ブランド名
- *   E(4)  : check
- *   F(5)  : 入札対象（チェックボックス）
- *   G(6)  : 担当者
- *   H(7)  : 相場価格
- *   K(10) : 入札価格
- *   L(11) : 卸価格
- *   M(12) : 参考URL①
- *   N(13) : 参考URL②
- *   O(14) : 参考URL③
- *   P(15) : 参考URL④
- *   Q(16) : 参考URL⑤
- *   R(17) : 補足メモ
- *   S(18) : 代表チェック
- *   T(19) : 相場正誤チェック（チェックボックス）
- *   U(20) : フィードバック
- *   V(21) : フィードバック確認完了
- *   X(23) : 落札成功（読み取り専用）
- *   Y(24) : 開催日
+ *   C(2)  : 管理番号（読み取りのみ）
+ *   E(4)  : ブランド名
+ *   F(5)  : check
+ *   G(6)  : 入札対象（チェックボックス）
+ *   H(7)  : 担当者
+ *   I(8)  : 修正相場（代表が入力）
+ *   J(9)  : 相場価格
+ *   M(12) : 入札価格
+ *   N(13) : 卸価格
+ *   O(14) : 参考URL①
+ *   P(15) : 参考URL②
+ *   Q(16) : 参考URL③
+ *   R(17) : 参考URL④
+ *   S(18) : 参考URL⑤
+ *   T(19) : 補足メモ
+ *   U(20) : 代表チェック
+ *   V(21) : 相場正誤チェック（チェックボックス）
+ *   W(22) : フィードバック
+ *   X(23) : フィードバック確認完了
+ *   Z(25) : 落札成功（読み取り専用）
+ *   AA(26): 開催日
  *
  * すべての商材シートで同じ列定義を使用します。
  */
@@ -32,29 +34,31 @@ import type { AuctionItem, Assignee } from "./types";
 
 // ── 列インデックス定義 ──────────────────────────────────────
 const COL = {
-  productUrl: 0,          // A
-  brandName: 3,           // D
-  check: 4,               // E
-  bidTarget: 5,           // F
-  assignee: 6,            // G
-  marketPrice: 7,         // H
-  bidPrice: 10,           // K
-  wholesalePrice: 11,     // L
-  referenceUrl1: 12,      // M
-  referenceUrl2: 13,      // N
-  referenceUrl3: 14,      // O
-  referenceUrl4: 15,      // P
-  referenceUrl5: 16,      // Q
-  notes: 17,              // R
-  representativeCheck: 18,// S
-  judgmentResult: 19,     // T
-  feedback: 20,           // U
-  feedbackConfirmed: 21,  // V
-  winningSuccess: 23,     // X（読み取り専用）
-  auctionDate: 24,        // Y
+  productUrl: 0,              // A
+  managementNumber: 2,        // C（読み取りのみ）
+  brandName: 4,               // E（旧D）
+  check: 5,                   // F（旧E）
+  bidTarget: 6,               // G（旧F）
+  assignee: 7,                // H（旧G）
+  revisedMarketPrice: 8,      // I（新規）
+  marketPrice: 9,             // J（旧H）
+  bidPrice: 12,               // M（旧K）
+  wholesalePrice: 13,         // N（旧L）
+  referenceUrl1: 14,          // O（旧M）
+  referenceUrl2: 15,          // P（旧N）
+  referenceUrl3: 16,          // Q（旧O）
+  referenceUrl4: 17,          // R（旧P）
+  referenceUrl5: 18,          // S（旧Q）
+  notes: 19,                  // T（旧R）
+  representativeCheck: 20,    // U（旧S）
+  judgmentResult: 21,         // V（旧T）
+  feedback: 22,               // W（旧U）
+  feedbackConfirmed: 23,      // X（旧V）
+  winningSuccess: 25,         // Z（旧X、読み取り専用）
+  auctionDate: 26,            // AA（旧Y）
 } as const;
 
-const MAX_COL_INDEX = 24; // Y 列
+const MAX_COL_INDEX = 26; // AA 列
 
 // ── クライアント初期化 ──────────────────────────────────────
 
@@ -212,9 +216,10 @@ function rowToItem(
     check: toBool(sheet.getCell(rowIndex, COL.check).value),
     bidTarget: toBool(sheet.getCell(rowIndex, COL.bidTarget).value),
     assignee: toStr(sheet.getCell(rowIndex, COL.assignee).value) as Assignee,
+    revisedMarketPrice: toNum(sheet.getCell(rowIndex, COL.revisedMarketPrice).value),
     marketPrice: toNum(sheet.getCell(rowIndex, COL.marketPrice).value),
-    bidPrice: readPriceCell(sheet.getCell(rowIndex, COL.bidPrice), `行${rowIndex + 1} K列(入札価格)`),
-    wholesalePrice: readPriceCell(sheet.getCell(rowIndex, COL.wholesalePrice), `行${rowIndex + 1} L列(卸価格)`),
+    bidPrice: readPriceCell(sheet.getCell(rowIndex, COL.bidPrice), `行${rowIndex + 1} M列(入札価格)`),
+    wholesalePrice: readPriceCell(sheet.getCell(rowIndex, COL.wholesalePrice), `行${rowIndex + 1} N列(卸価格)`),
     referenceUrl1: toStr(sheet.getCell(rowIndex, COL.referenceUrl1).value),
     referenceUrl2: toStr(sheet.getCell(rowIndex, COL.referenceUrl2).value),
     referenceUrl3: toStr(sheet.getCell(rowIndex, COL.referenceUrl3).value),
@@ -286,9 +291,11 @@ export async function fetchAllItemsMultiple(
 
 /** 更新対象のフィールド型 */
 export type UpdatePayload = Partial<{
+  productUrl: string;
   check: boolean;
   bidTarget: boolean;
   assignee: string;
+  revisedMarketPrice: number | null;
   marketPrice: number | null;
   referenceUrl1: string;
   referenceUrl2: string;
@@ -328,9 +335,11 @@ export async function updateItem(
     sheet.getCell(rowIndex, col).value = value ?? "";
   };
 
+  if (payload.productUrl !== undefined)           set(COL.productUrl, payload.productUrl);
   if (payload.check !== undefined)               set(COL.check, payload.check);
   if (payload.bidTarget !== undefined)            set(COL.bidTarget, payload.bidTarget);
   if (payload.assignee !== undefined)             set(COL.assignee, payload.assignee);
+  if (payload.revisedMarketPrice !== undefined)   set(COL.revisedMarketPrice, payload.revisedMarketPrice);
   if (payload.marketPrice !== undefined)          set(COL.marketPrice, payload.marketPrice);
   if (payload.referenceUrl1 !== undefined)        set(COL.referenceUrl1, payload.referenceUrl1);
   if (payload.referenceUrl2 !== undefined)        set(COL.referenceUrl2, payload.referenceUrl2);
@@ -348,6 +357,12 @@ export async function updateItem(
 
 /**
  * 新規行をスプレッドシートに追記する
+ *
+ * ⚠️ sheet.addRow() は内部でヘッダー行を読み込むため、
+ *    見出しに重複がある場合に "Duplicate header detected" エラーが発生する。
+ *    そのため loadCells + getCell + saveUpdatedCells によるセル直接指定方式を使用し、
+ *    ヘッダー名に一切依存しない実装にしている。
+ *
  * @param sheetName スプレッドシートのタブ名
  */
 export async function appendItem(
@@ -357,26 +372,57 @@ export async function appendItem(
   const doc = await getDoc();
   const sheet = getSheetByName(doc, sheetName);
 
-  // A〜Y（25列）の配列を用意し、対応するインデックスに値を入れる（X・Y は読み取り専用のため空のまま）
-  const row = new Array(MAX_COL_INDEX + 1).fill("");
-  row[COL.productUrl]          = data.productUrl;
-  row[COL.brandName]           = data.brandName;
-  row[COL.check]               = data.check;
-  row[COL.bidTarget]           = data.bidTarget;
-  row[COL.assignee]            = data.assignee;
-  row[COL.marketPrice]         = data.marketPrice ?? "";
-  row[COL.bidPrice]            = data.bidPrice ?? "";
-  row[COL.wholesalePrice]      = data.wholesalePrice ?? "";
-  row[COL.referenceUrl1]       = data.referenceUrl1;
-  row[COL.referenceUrl2]       = data.referenceUrl2;
-  row[COL.referenceUrl3]       = data.referenceUrl3;
-  row[COL.referenceUrl4]       = data.referenceUrl4;
-  row[COL.referenceUrl5]       = data.referenceUrl5;
-  row[COL.notes]               = data.notes;
-  row[COL.representativeCheck] = data.representativeCheck;
-  row[COL.judgmentResult]      = data.judgmentResult;
-  row[COL.feedback]            = data.feedback;
-  row[COL.feedbackConfirmed]   = data.feedbackConfirmed;
+  // ── Step 1: A列だけを読み込み、データが入っている最終行を探す ──
+  // addRow() を使わないことで "Duplicate header detected" を完全回避する。
+  const totalRows = sheet.rowCount;
+  await sheet.loadCells({
+    startRowIndex: 0,
+    endRowIndex: totalRows,
+    startColumnIndex: 0,       // A列のみ（最小限のデータ転送）
+    endColumnIndex: 1,
+  });
 
-  await sheet.addRow(row);
+  let lastDataRowIndex = 0;    // 0 = ヘッダー行
+  for (let r = 1; r < totalRows; r++) {
+    if (toStr(sheet.getCell(r, 0).value) !== "") {
+      lastDataRowIndex = r;
+    }
+  }
+
+  const appendRowIndex = lastDataRowIndex + 1;
+
+  // ── Step 2: 追記先の行を全列幅で読み込む ──
+  await sheet.loadCells({
+    startRowIndex: appendRowIndex,
+    endRowIndex: appendRowIndex + 1,
+    startColumnIndex: 0,
+    endColumnIndex: MAX_COL_INDEX + 1,
+  });
+
+  // ── Step 3: 各セルに値を直接書き込む（列インデックス指定のみ・ヘッダー不使用） ──
+  const set = (col: number, value: string | number | boolean | null) => {
+    sheet.getCell(appendRowIndex, col).value = value ?? "";
+  };
+
+  set(COL.productUrl,          data.productUrl);
+  set(COL.brandName,           data.brandName);
+  set(COL.check,               data.check);
+  set(COL.bidTarget,           data.bidTarget);
+  set(COL.assignee,            data.assignee);
+  set(COL.revisedMarketPrice,  data.revisedMarketPrice ?? "");
+  set(COL.marketPrice,         data.marketPrice ?? "");
+  set(COL.bidPrice,            data.bidPrice ?? "");
+  set(COL.wholesalePrice,      data.wholesalePrice ?? "");
+  set(COL.referenceUrl1,       data.referenceUrl1);
+  set(COL.referenceUrl2,       data.referenceUrl2);
+  set(COL.referenceUrl3,       data.referenceUrl3);
+  set(COL.referenceUrl4,       data.referenceUrl4);
+  set(COL.referenceUrl5,       data.referenceUrl5);
+  set(COL.notes,               data.notes);
+  set(COL.representativeCheck, data.representativeCheck);
+  set(COL.judgmentResult,      data.judgmentResult);
+  set(COL.feedback,            data.feedback);
+  set(COL.feedbackConfirmed,   data.feedbackConfirmed);
+
+  await sheet.saveUpdatedCells();
 }

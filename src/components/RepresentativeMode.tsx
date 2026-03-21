@@ -64,6 +64,7 @@ export function RepresentativeMode() {
 
   // ── フィードバック（uid をキーに使用してカテゴリー間 ID 衝突を防ぐ） ──
   const [feedbackDraft, setFeedbackDraft] = useState<Record<string, string>>({});
+  const [revisedMarketPriceDraft, setRevisedMarketPriceDraft] = useState<Record<string, string>>({});
   const feedbackRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
   const [fadingIds, setFadingIds] = useState<Set<string>>(new Set());
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
@@ -154,8 +155,17 @@ export function RepresentativeMode() {
 
   const handleJudge = useCallback((item: RichItem, isApprove: boolean) => {
     const currentFeedback = feedbackDraft[item.uid] ?? item.feedback ?? "";
+    const rawPrice = revisedMarketPriceDraft[item.uid];
+    const parsedPrice = rawPrice !== undefined && rawPrice.trim() !== ""
+      ? Number(rawPrice.replace(/[,¥\s]/g, "")) || null
+      : item.revisedMarketPrice ?? null;
 
     setFeedbackDraft((prev) => {
+      const next = { ...prev };
+      delete next[item.uid];
+      return next;
+    });
+    setRevisedMarketPriceDraft((prev) => {
       const next = { ...prev };
       delete next[item.uid];
       return next;
@@ -166,8 +176,8 @@ export function RepresentativeMode() {
     setTimeout(() => {
       patchItem(
         item,
-        { representativeCheck: true, judgmentResult: isApprove, feedback: currentFeedback },
-        isApprove ? "合格として記録しました（S・T・U列）" : "不合格として記録しました（S・T・U列）"
+        { representativeCheck: true, judgmentResult: isApprove, feedback: currentFeedback, revisedMarketPrice: parsedPrice },
+        isApprove ? "合格として記録しました（U・V・W・I列）" : "不合格として記録しました（U・V・W・I列）"
       );
       setFadingIds((prev) => {
         const next = new Set(prev);
@@ -175,15 +185,28 @@ export function RepresentativeMode() {
         return next;
       });
     }, FADE_DURATION_MS);
-  }, [feedbackDraft, patchItem]);
+  }, [feedbackDraft, revisedMarketPriceDraft, patchItem]);
 
-  const handleSaveFeedback = useCallback((item: RichItem, feedback: string) => {
-    patchItem(item, { feedback }, "フィードバックを保存しました（U列）");
+  const handleSaveFeedback = useCallback((item: RichItem, feedback: string, revisedPriceStr?: string) => {
+    const parsedPrice = revisedPriceStr !== undefined && revisedPriceStr.trim() !== ""
+      ? Number(revisedPriceStr.replace(/[,¥\s]/g, "")) || null
+      : undefined;
+    const payload: object = parsedPrice !== undefined
+      ? { feedback, revisedMarketPrice: parsedPrice }
+      : { feedback };
+    patchItem(item, payload, "フィードバックを保存しました（W・I列）");
     setFeedbackDraft((prev) => {
       const next = { ...prev };
       delete next[item.uid];
       return next;
     });
+    if (revisedPriceStr !== undefined) {
+      setRevisedMarketPriceDraft((prev) => {
+        const next = { ...prev };
+        delete next[item.uid];
+        return next;
+      });
+    }
   }, [patchItem]);
 
   // ── 全URL一括オープン ─────────────────────────────────
@@ -400,12 +423,12 @@ export function RepresentativeMode() {
           style={{ gridTemplateColumns: "minmax(0,1fr) 6rem minmax(0,1.1fr) minmax(0,0.8fr) 5rem minmax(0,1.5fr) auto" }}
         >
           <span>商品 + カテゴリー（A列）</span>
-          <span>価格情報（H・K・L列）</span>
-          <span>参考URL（M〜Q列）</span>
-          <span>補足メモ（R列）</span>
-          <span>ブランド（D列）</span>
-          <span>フィードバック（U列）</span>
-          <span>承認（S・T列）</span>
+          <span>価格情報（J・M・N列）</span>
+          <span>参考URL（O〜S列）</span>
+          <span>補足メモ（T列）</span>
+          <span>ブランド（E列）</span>
+          <span>フィードバック（W列）+ 修正相場（I列）</span>
+          <span>承認（U・V列）</span>
         </div>
 
         {reviewed.length === 0 ? (
@@ -612,10 +635,10 @@ export function RepresentativeMode() {
                     )}
                   </div>
 
-                  {/* フィードバック入力 */}
+                  {/* フィードバック入力 + 修正相場 */}
                   <div className="flex gap-1.5 items-start min-w-0">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-muted-foreground mb-0.5 md:hidden">フィードバック</p>
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <p className="text-xs text-muted-foreground mb-0.5 md:hidden">フィードバック + 修正相場</p>
                       <Textarea
                         ref={(el) => { feedbackRefs.current[item.uid] = el; }}
                         placeholder="フィードバックを入力..."
@@ -626,14 +649,26 @@ export function RepresentativeMode() {
                           setFeedbackDraft((prev) => ({ ...prev, [item.uid]: e.target.value }))
                         }
                       />
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-muted-foreground shrink-0">修正相場</span>
+                        <input
+                          type="number"
+                          placeholder={item.revisedMarketPrice != null ? String(item.revisedMarketPrice) : "未入力"}
+                          className="w-full rounded-md border border-input bg-background px-2 py-1 text-sm font-mono placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring"
+                          value={revisedMarketPriceDraft[item.uid] ?? (item.revisedMarketPrice != null ? String(item.revisedMarketPrice) : "")}
+                          onChange={(e) =>
+                            setRevisedMarketPriceDraft((prev) => ({ ...prev, [item.uid]: e.target.value }))
+                          }
+                        />
+                      </div>
                     </div>
                     {isDirty && (
                       <Button
                         size="sm"
                         variant="outline"
                         className="h-8 px-2 shrink-0"
-                        title="フィードバックを保存（U列）"
-                        onClick={() => handleSaveFeedback(item, draft)}
+                        title="フィードバック・修正相場を保存（W・I列）"
+                        onClick={() => handleSaveFeedback(item, draft, revisedMarketPriceDraft[item.uid])}
                       >
                         <MessageSquare className="h-3.5 w-3.5" />
                       </Button>

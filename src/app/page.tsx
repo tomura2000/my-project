@@ -6,7 +6,7 @@ import { AuctionItem, Assignee } from "@/lib/types";
 import { CATEGORIES, DEFAULT_CATEGORY_KEY } from "@/lib/categories";
 import { getSampleItems } from "@/lib/data";
 import { AssigneeSelect, ASSIGNEE_COLORS } from "@/components/AssigneeSelect";
-import { EmployeeMode } from "@/components/EmployeeMode";
+import { EmployeeMode, PostData } from "@/components/EmployeeMode";
 import { FeedbackHistory } from "@/components/FeedbackHistory";
 import { RepresentativeMode } from "@/components/RepresentativeMode";
 import { Toaster } from "@/components/ui/sonner";
@@ -29,15 +29,16 @@ type Tab = "employee" | "feedback" | "representative";
 type ConnectionStatus = "loading" | "connected" | "sample";
 
 export default function HomePage() {
+  // フィードバック確認タブ用のアイテムリスト
   const [items, setItems] = useState<AuctionItem[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>("employee");
   const [status, setStatus] = useState<ConnectionStatus>("loading");
   const [currentCategory, setCurrentCategory] = useState<string>(DEFAULT_CATEGORY_KEY);
 
-  // 担当者はページ全体で共有（入札入力・フィードバック確認で同じ人を使う）
+  // 担当者はページ全体で共有（投稿・フィードバック確認で同じ人を使う）
   const [currentAssignee, setCurrentAssignee] = useState<Assignee>("");
 
-  // ── データ取得 ───────────────────────────────────────────────
+  // ── データ取得（フィードバックタブ用） ──────────────────────
   const fetchItems = useCallback(async () => {
     setStatus("loading");
     try {
@@ -61,11 +62,122 @@ export default function HomePage() {
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
-  // ── ローカル状態更新 + API PATCH ────────────────────────────
-  const patchItem = async (id: string, payload: object, msg: string) => {
+  // ── 新規投稿（Append） ───────────────────────────────────────
+  const handleEmployeePost = async (data: PostData) => {
+    if (status === "connected") {
+      const res = await fetch(`/api/items?category=${currentCategory}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productUrl: data.productUrl,
+          brandName: "",
+          check: true,
+          bidTarget: data.marketPrice !== null,
+          assignee: data.assignee,
+          revisedMarketPrice: null,
+          marketPrice: data.marketPrice,
+          bidPrice: null,
+          wholesalePrice: null,
+          referenceUrl1: data.referenceUrl1,
+          referenceUrl2: data.referenceUrl2,
+          referenceUrl3: data.referenceUrl3,
+          referenceUrl4: data.referenceUrl4,
+          referenceUrl5: data.referenceUrl5,
+          notes: data.notes,
+          representativeCheck: false,
+          judgmentResult: false,
+          feedback: "",
+          feedbackConfirmed: false,
+          winningSuccess: false,
+          auctionDate: "",
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message ?? `HTTP ${res.status}`);
+      }
+      toast.success("投稿しました。次の商品を入力できます。");
+    } else {
+      // サンプルモード: ローカル state に追加してデモ
+      const newItem: AuctionItem = {
+        id: String(Date.now()),
+        productUrl: data.productUrl,
+        brandName: "",
+        check: true,
+        bidTarget: data.marketPrice !== null,
+        assignee: data.assignee,
+        revisedMarketPrice: null,
+        marketPrice: data.marketPrice,
+        bidPrice: null,
+        wholesalePrice: null,
+        referenceUrl1: data.referenceUrl1,
+        referenceUrl2: data.referenceUrl2,
+        referenceUrl3: data.referenceUrl3,
+        referenceUrl4: data.referenceUrl4,
+        referenceUrl5: data.referenceUrl5,
+        notes: data.notes,
+        representativeCheck: false,
+        judgmentResult: false,
+        feedback: "",
+        feedbackConfirmed: false,
+        winningSuccess: false,
+        auctionDate: "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      setItems((prev) => [...prev, newItem]);
+      toast.success("投稿しました（サンプルデータ）。次の商品を入力できます。");
+    }
+  };
+
+  // ── 投稿編集（Update） ──────────────────────────────────────
+  const handleEmployeeUpdate = async (id: string, data: PostData) => {
+    const patch = {
+      productUrl: data.productUrl,
+      marketPrice: data.marketPrice,
+      bidTarget: data.marketPrice !== null,
+      referenceUrl1: data.referenceUrl1,
+      referenceUrl2: data.referenceUrl2,
+      referenceUrl3: data.referenceUrl3,
+      referenceUrl4: data.referenceUrl4,
+      referenceUrl5: data.referenceUrl5,
+      notes: data.notes,
+    };
+    if (status === "connected") {
+      const res = await fetch(`/api/items/${id}?category=${currentCategory}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.message ?? `HTTP ${res.status}`);
+      }
+      setItems((prev) =>
+        prev.map((i) =>
+          i.id === id
+            ? { ...i, ...patch, updatedAt: new Date().toISOString() }
+            : i
+        )
+      );
+      toast.success("投稿を更新しました。");
+    } else {
+      setItems((prev) =>
+        prev.map((i) =>
+          i.id === id
+            ? { ...i, ...patch, updatedAt: new Date().toISOString() }
+            : i
+        )
+      );
+      toast.success("投稿を更新しました（サンプルデータ）。");
+    }
+  };
+
+  // ── フィードバック確認 ───────────────────────────────────────
+  const handleFeedbackConfirm = async (id: string) => {
     setItems((prev) =>
       prev.map((i) =>
-        i.id === id ? { ...i, ...(payload as Partial<AuctionItem>), updatedAt: new Date().toISOString() } : i
+        i.id === id ? { ...i, feedbackConfirmed: true, updatedAt: new Date().toISOString() } : i
       )
     );
     if (status === "connected") {
@@ -73,48 +185,41 @@ export default function HomePage() {
         const res = await fetch(`/api/items/${id}?category=${currentCategory}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({ feedbackConfirmed: true }),
         });
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
           throw new Error(body.message ?? `HTTP ${res.status}`);
         }
-        toast.success(msg);
+        toast.success("確認済みにしました（X列）");
       } catch (err) {
         toast.error(`保存に失敗しました: ${err instanceof Error ? err.message : "不明なエラー"}`);
       }
     } else {
-      toast.success(`${msg}（サンプルデータ）`);
+      toast.success("確認済みにしました（サンプルデータ）");
     }
   };
-
-  // ── ハンドラ ────────────────────────────────────────────────
-  const handleEmployeeSave = (id: string, data: Parameters<typeof patchItem>[1] & object) =>
-    patchItem(id, data, "保存しました。次の商品に進みます。");
-
-  const handleFeedbackConfirm = (id: string) =>
-    patchItem(id, { feedbackConfirmed: true }, "確認済みにしました（V列）");
 
   // ── カテゴリー切り替え ───────────────────────────────────────
   const handleCategoryChange = (key: string) => {
     if (key === currentCategory) return;
     setCurrentCategory(key);
-    // カテゴリー切り替え時は items をリセット（fetchItems が useEffect で自動実行される）
     setItems([]);
   };
 
   // ── 集計 ────────────────────────────────────────────────────
-  const pendingCount   = items.filter((i) => !i.check).length;
-  const feedbackCount  = items.filter((i) => i.assignee === currentAssignee && i.feedback.trim() !== "" && !i.feedbackConfirmed).length;
+  const feedbackCount = items.filter(
+    (i) => i.assignee === currentAssignee && i.feedback.trim() !== "" && !i.feedbackConfirmed
+  ).length;
 
   // ── 社員系タブで担当者未選択なら選択画面を表示 ─────────────
   const needsAssignee = (activeTab === "employee" || activeTab === "feedback") && !currentAssignee;
 
   // ── タブ設定 ────────────────────────────────────────────────
   const tabs: { key: Tab; label: string; icon: React.ElementType; badge?: number }[] = [
-    { key: "employee",       label: "入札入力",         icon: ClipboardList, badge: pendingCount },
-    { key: "feedback",       label: "フィードバック確認", icon: MessageSquare,  badge: currentAssignee ? feedbackCount : undefined },
-    { key: "representative", label: "代表モード",        icon: Crown },
+    { key: "employee",       label: "商品投稿",           icon: ClipboardList },
+    { key: "feedback",       label: "フィードバック確認",  icon: MessageSquare, badge: currentAssignee ? feedbackCount : undefined },
+    { key: "representative", label: "代表モード",          icon: Crown },
   ];
 
   const currentCategoryLabel = CATEGORIES.find((c) => c.key === currentCategory)?.label ?? "";
@@ -151,7 +256,7 @@ export default function HomePage() {
                     <span className={`inline-flex items-center justify-center rounded-full text-xs
                                      font-semibold h-4 min-w-4 px-1
                                      ${isActive
-                                       ? key === "representative" ? "bg-amber-500 text-white" : "bg-primary text-primary-foreground"
+                                       ? "bg-primary text-primary-foreground"
                                        : "bg-muted-foreground/20 text-muted-foreground"}`}>
                       {badge}
                     </span>
@@ -236,7 +341,7 @@ export default function HomePage() {
             </div>
             {status !== "loading" && (
               <span className="text-xs text-muted-foreground ml-1">
-                — {currentCategoryLabel}・{items.length}件
+                — {currentCategoryLabel}
               </span>
             )}
           </div>
@@ -260,7 +365,7 @@ export default function HomePage() {
           <p className="text-sm">データを取得中...</p>
         </div>
       ) : needsAssignee ? (
-        /* 担当者選択画面（入札入力・フィードバック確認タブ共通） */
+        /* 担当者選択画面（商品投稿・フィードバック確認タブ共通） */
         <main className="max-w-screen-lg mx-auto px-4 sm:px-6 py-8">
           <AssigneeSelect onSelect={setCurrentAssignee} />
         </main>
@@ -268,11 +373,13 @@ export default function HomePage() {
         <main className="max-w-screen-lg mx-auto px-4 sm:px-6 py-8">
           {activeTab === "employee" && (
             <EmployeeMode
-              items={items}
               currentAssignee={currentAssignee}
               onAssigneeChange={setCurrentAssignee}
               categoryKey={currentCategory}
-              onSave={handleEmployeeSave}
+              onPost={handleEmployeePost}
+              onUpdate={handleEmployeeUpdate}
+              items={items}
+              isSample={status === "sample"}
             />
           )}
           {activeTab === "feedback" && (
