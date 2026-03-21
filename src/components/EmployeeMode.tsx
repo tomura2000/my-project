@@ -190,7 +190,7 @@ export function EmployeeMode({
               : "text-muted-foreground hover:text-foreground"}`}
         >
           <List className="h-3.5 w-3.5" />
-          対象の投稿リスト
+          投稿の修正
           {myPendingItems.length > 0 && (
             <span className={`inline-flex items-center justify-center rounded-full text-xs font-semibold h-4 min-w-4 px-1
               ${innerTab === "list"
@@ -367,7 +367,7 @@ export function EmployeeMode({
           {myPendingItems.length === 0 ? (
             <div className="rounded-xl border bg-white py-16 text-center space-y-2">
               <List className="h-8 w-8 mx-auto text-muted-foreground opacity-40" />
-              <p className="text-sm text-muted-foreground">未チェックの投稿はありません</p>
+              <p className="text-sm text-muted-foreground">修正できる投稿はありません</p>
               <p className="text-xs text-muted-foreground">代表者確認前の投稿がここに表示されます</p>
             </div>
           ) : (
