@@ -1,5 +1,5 @@
 // スプレッドシートの列構造に対応したデータモデル
-export const ASSIGNEES = ["吉川さん", "伊藤さん", "望月さん", "折出さん", "小澤さん"] as const;
+export const ASSIGNEES = ["吉川さん", "伊藤さん", "望月さん", "折出さん", "小澤さん", "劉備さん"] as const;
 export type Assignee = (typeof ASSIGNEES)[number] | "";
 
 export interface AuctionItem {

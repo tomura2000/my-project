@@ -9,6 +9,7 @@ const ASSIGNEE_COLORS: Record<string, string> = {
   望月さん: "bg-rose-500",
   折出さん: "bg-amber-500",
   小澤さん: "bg-emerald-500",
+  劉備さん: "bg-yellow-500",
 };
 
 interface AssigneeSelectProps {
