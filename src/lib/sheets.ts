@@ -244,15 +244,34 @@ async function fetchItemsFromSheet(
 ): Promise<AuctionItem[]> {
   const totalRows = sheet.rowCount;
 
+  // Step 1: A列のみ読み込んでデータがある最終行を特定する
+  // （空白行が大量に追加されても全列読み込みを回避できる）
   await sheet.loadCells({
     startRowIndex: 0,
     endRowIndex: totalRows,
+    startColumnIndex: 0,
+    endColumnIndex: 1,
+  });
+
+  let lastDataRowIndex = 0;
+  for (let r = 1; r < totalRows; r++) {
+    if (toStr(sheet.getCell(r, 0).value) !== "") {
+      lastDataRowIndex = r;
+    }
+  }
+
+  if (lastDataRowIndex === 0) return [];
+
+  // Step 2: データがある行のみ全列を読み込む
+  await sheet.loadCells({
+    startRowIndex: 0,
+    endRowIndex: lastDataRowIndex + 1,
     startColumnIndex: 0,
     endColumnIndex: MAX_COL_INDEX + 1,
   });
 
   const items: AuctionItem[] = [];
-  for (let row = 1; row < totalRows; row++) {
+  for (let row = 1; row <= lastDataRowIndex; row++) {
     const item = rowToItem(sheet, row);
     if (item) items.push(item);
   }
