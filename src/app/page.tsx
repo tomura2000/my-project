@@ -76,7 +76,7 @@ export default function HomePage() {
           assignee: data.assignee,
           revisedMarketPrice: null,
           marketPrice: data.marketPrice,
-          bidPrice: null,
+          bidPrice: data.bidPrice ?? null,
           wholesalePrice: null,
           referenceUrl1: data.referenceUrl1,
           referenceUrl2: data.referenceUrl2,
@@ -84,7 +84,7 @@ export default function HomePage() {
           referenceUrl4: data.referenceUrl4,
           referenceUrl5: data.referenceUrl5,
           notes: data.notes,
-          representativeCheck: false,
+          representativeCheck: data.bidOnly,
           judgmentResult: false,
           feedback: "",
           feedbackConfirmed: false,
@@ -96,7 +96,7 @@ export default function HomePage() {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.message ?? `HTTP ${res.status}`);
       }
-      toast.success("投稿しました。次の商品を入力できます。");
+      toast.success(data.bidOnly ? "入札登録しました。次の商品を入力できます。" : "投稿しました。次の商品を入力できます。");
     } else {
       // サンプルモード: ローカル state に追加してデモ
       const newItem: AuctionItem = {
@@ -108,7 +108,7 @@ export default function HomePage() {
         assignee: data.assignee,
         revisedMarketPrice: null,
         marketPrice: data.marketPrice,
-        bidPrice: null,
+        bidPrice: data.bidPrice ?? null,
         wholesalePrice: null,
         referenceUrl1: data.referenceUrl1,
         referenceUrl2: data.referenceUrl2,
@@ -116,7 +116,7 @@ export default function HomePage() {
         referenceUrl4: data.referenceUrl4,
         referenceUrl5: data.referenceUrl5,
         notes: data.notes,
-        representativeCheck: false,
+        representativeCheck: data.bidOnly,
         judgmentResult: false,
         feedback: "",
         feedbackConfirmed: false,
@@ -126,7 +126,7 @@ export default function HomePage() {
         updatedAt: new Date().toISOString(),
       };
       setItems((prev) => [...prev, newItem]);
-      toast.success("投稿しました（サンプルデータ）。次の商品を入力できます。");
+      toast.success(data.bidOnly ? "入札登録しました（サンプルデータ）。次の商品を入力できます。" : "投稿しました（サンプルデータ）。次の商品を入力できます。");
     }
   };
 
