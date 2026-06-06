@@ -128,7 +128,7 @@ function calcBidPrice(marketPrice: number): number {
 }
 
 // 入札する機能を持つ担当者
-const BID_BUTTON_ASSIGNEES = ["吉川さん", "折出さん"] as const;
+const BID_BUTTON_ASSIGNEES = ["吉川さん", "折出さん", "小澤さん"] as const;
 
 // ── メインコンポーネント ─────────────────────────────────
 
